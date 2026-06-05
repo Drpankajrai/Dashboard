@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Live Data Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --blue:#185FA5;--blue-l:#E6F1FB;--blue-d:#0C447C;
+    --green:#1D9E75;--green-l:#E1F5EE;--green-d:#085041;
+    --amber:#BA7517;--amber-l:#FAEEDA;--amber-d:#633806;
+    --purple:#534AB7;--purple-l:#EEEDFE;--purple-d:#3C3489;
+    --coral:#D85A30;--coral-l:#FAECE7;--coral-d:#712B13;
+    --red:#A32D2D;--red-l:#FCEBEB;
+    --bg:#fff;--bg2:#F8F8F6;--bg3:#F1EFE8;
+    --text:#1a1a18;--text2:#5F5E5A;--text3:#888780;
+    --border:rgba(0,0,0,0.09);--border2:rgba(0,0,0,0.16);
+    --r:10px;--rl:14px;
+    --font:'Segoe UI',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font);background:var(--bg3);color:var(--text);min-height:100vh}
+
+  /* TOPBAR */
+  .topbar{background:var(--bg);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;position:sticky;top:0;z-index:100;box-shadow:0 1px 6px rgba(0,0,0,0.07)}
+  .brand{display:flex;align-items:center;gap:9px}
+  .bdot{width:10px;height:10px;border-radius:50%;background:#D3D1C7;transition:background .4s;flex-shrink:0}
+  .bdot.live{background:var(--green);animation:blink 2s infinite}
+  .bdot.err{background:var(--red)}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+  .brand h1{font-size:15px;font-weight:700;color:var(--text);letter-spacing:-.3px;line-height:1.2}
+  .brand p{font-size:11px;color:var(--text3);margin-top:1px}
+  .sbadge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:5px 12px;border-radius:99px}
+  .s-wait{background:#F1EFE8;color:#888780}
+  .s-live{background:var(--green-l);color:var(--green-d)}
+  .s-err{background:var(--red-l);color:var(--red)}
+  .s-load{background:var(--blue-l);color:var(--blue-d)}
+  .sdot{width:7px;height:7px;border-radius:50%;background:currentColor}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
+  .sdot.pulse{animation:pulse 1s infinite}
+
+  .main{max-width:1080px;margin:0 auto;padding:18px 14px 50px}
+
+  /* SETUP CARD */
+  .setup{background:var(--bg);border:1px solid var(--border);border-radius:var(--rl);padding:18px;margin-bottom:16px}
+  .setup h2{font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+  .url-row{display:flex;gap:8px;flex-wrap:wrap}
+  .url-row input{flex:1;min-width:200px;height:44px;padding:0 13px;border:1.5px solid var(--border2);border-radius:var(--r);font-size:13px;color:var(--text);background:var(--bg);outline:none;transition:border .2s}
+  .url-row input:focus{border-color:var(--blue)}
+  .url-row input::placeholder{color:var(--text3);font-size:12px}
+  .btn{height:44px;padding:0 20px;border-radius:var(--r);border:none;font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:opacity .15s,transform .1s;white-space:nowrap}
+  .btn:active{transform:scale(.97)}
+  .btn-p{background:var(--blue);color:#fff}
+  .btn-p:hover{opacity:.87}
+  .btn-s{background:var(--bg2);color:var(--text2);border:1px solid var(--border2)}
+  .btn-s:hover{background:#E8E6DF}
+  .btn-s:disabled{opacity:.4;cursor:not-allowed}
+  .errbox{background:var(--red-l);border:1px solid rgba(163,45,45,.2);border-radius:var(--r);padding:12px 14px;font-size:12px;color:var(--red);margin-top:10px;display:none;line-height:1.7;white-space:pre-line}
+  .sinfo{font-size:11px;color:var(--text3);margin-top:9px;line-height:1.6}
+  .sinfo a{color:var(--blue)}
+
+  /* METRICS */
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px}
+  .metric{border-radius:var(--rl);padding:16px;border:1px solid transparent}
+  .mc0{background:var(--blue-l);border-color:rgba(24,95,165,.15)}
+  .mc1{background:var(--green-l);border-color:rgba(29,158,117,.15)}
+  .mc2{background:var(--amber-l);border-color:rgba(186,117,23,.15)}
+  .mc3{background:var(--purple-l);border-color:rgba(83,74,183,.15)}
+  .mc4{background:var(--coral-l);border-color:rgba(216,90,48,.15)}
+  .mcstat{background:var(--bg);border:1px solid var(--border)!important}
+  .mlabel{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;opacity:.75}
+  .mc0 .mlabel{color:var(--blue-d)}.mc1 .mlabel{color:var(--green-d)}.mc2 .mlabel{color:var(--amber-d)}.mc3 .mlabel{color:var(--purple-d)}.mc4 .mlabel{color:var(--coral-d)}.mcstat .mlabel{color:var(--text3)}
+  .mval{font-size:24px;font-weight:800;letter-spacing:-1px;color:var(--text);word-break:break-word}
+  .mperiod{font-size:11px;color:var(--text3);margin-top:2px}
+  .mgrow{font-size:12px;font-weight:700;margin-top:5px}
+  .gu{color:var(--green)}.gd{color:var(--red)}
+
+  /* CHARTS */
+  .charts{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+  @media(max-width:580px){.charts{grid-template-columns:1fr}}
+  .cc{background:var(--bg);border:1px solid var(--border);border-radius:var(--rl);padding:16px}
+  .ctitle{font-size:13px;font-weight:700;color:var(--text2);margin-bottom:7px}
+  .legend{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .li{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2)}
+  .lsq{width:9px;height:9px;border-radius:2px;flex-shrink:0}
+
+  /* TABLE */
+  .tcard{background:var(--bg);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;margin-bottom:16px}
+  .thead2{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)}
+  .thead2 h3{font-size:13px;font-weight:700;color:var(--text2)}
+  .cbadge{font-size:10px;font-weight:700;padding:3px 9px;border-radius:99px;background:var(--blue-l);color:var(--blue-d)}
+  table.dt{width:100%;border-collapse:collapse;font-size:12px}
+  table.dt th{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:8px 16px;border-bottom:1px solid var(--border);background:var(--bg2);text-align:left;white-space:nowrap}
+  table.dt th.r,table.dt td.r{text-align:right;font-variant-numeric:tabular-nums}
+  table.dt td{padding:10px 16px;border-bottom:1px solid var(--border);color:var(--text)}
+  table.dt tr:last-child td{border-bottom:none}
+  table.dt tr:hover td{background:var(--bg2)}
+  .rbadge{display:inline-flex;font-size:10px;font-weight:700;padding:2px 9px;border-radius:99px;white-space:nowrap}
+  .rb0{background:var(--blue-l);color:var(--blue-d)}.rb1{background:var(--green-l);color:var(--green-d)}
+  .rb2{background:var(--amber-l);color:var(--amber-d)}.rb3{background:var(--purple-l);color:var(--purple-d)}.rb4{background:var(--coral-l);color:var(--coral-d)}
+
+  .empty{text-align:center;padding:50px 20px;color:var(--text3);font-size:13px;line-height:1.8}
+  .empty svg{margin-bottom:12px;opacity:.3}
+
+  footer{text-align:center;font-size:11px;color:var(--text3);padding-bottom:24px;line-height:2}
+  footer b{color:var(--green)}
+
+  /* MOBILE TWEAKS */
+  @media(max-width:480px){
+    .brand h1{font-size:13px}
+    .mval{font-size:20px}
+    .metrics{grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
+    table.dt th,table.dt td{padding:8px 10px}
+    .btn{height:40px;font-size:12px;padding:0 14px}
+    .url-row input{height:40px;font-size:12px}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="bdot" id="bdot"></div>
+    <div>
+      <h1>📊 Live Data Dashboard</h1>
+      <p id="sync-lbl">Not connected</p>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <button class="btn btn-s" id="ref-btn" onclick="manualRefresh()" style="display:none">↻ Refresh</button>
+    <span class="sbadge s-wait" id="sbadge"><span class="sdot"></span> Waiting</span>
+  </div>
+</div>
+
+<div class="main">
+
+  <div class="setup">
+    <h2>🔗 Connect your Google Sheet</h2>
+    <div class="url-row">
+      <input type="url" id="surl" placeholder="Paste Google Sheets CSV URL here…" autocomplete="off" autocorrect="off" spellcheck="false">
+      <button class="btn btn-p" onclick="connectSheet()">⚡ Connect</button>
+    </div>
+    <div class="errbox" id="errbox"></div>
+    <p class="sinfo">
+      <strong>How to get your URL:</strong> Google Sheets → File → Share → Publish to web → Select sheet → Choose <strong>CSV</strong> → Publish → Copy URL<br>
+      Dashboard auto-refreshes every 30 seconds. Any new rows or columns reflect automatically.
+    </p>
+  </div>
+
+  <div id="msec" style="display:none">
+    <div class="metrics" id="metrics"></div>
+    <div class="charts" id="charts"></div>
+    <div class="tcard" id="tcard"></div>
+  </div>
+
+  <div id="estate" class="empty">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg><br>
+    Paste your Google Sheets CSV URL above and click <strong>Connect</strong><br>
+    <span style="font-size:11px">Works on mobile, tablet & laptop</span>
+  </div>
+
+</div>
+
+<footer>
+  Auto-syncs every 30s &nbsp;·&nbsp; <b id="fcount">0</b> data points &nbsp;·&nbsp; <span id="rowcount">0</span> rows tracked
+</footer>
+
+<script>
+/* ═══════════════════════════════════════════
+   CONFIG
+═══════════════════════════════════════════ */
+const COLORS = ['#185FA5','#1D9E75','#BA7517','#534AB7','#D85A30','#993556'];
+const STORAGE_KEY = 'liveDash_sheetUrl';
+const REFRESH_MS  = 30000;
+
+// Multiple CORS proxies — tries each until one works
+const PROXIES = [
+  u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+  u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+  u => `https://thingproxy.freeboard.io/fetch/${u}`,
+  u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`
+];
+
+/* ═══════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════ */
+let chartObjs  = {};
+let timer      = null;
+let currentUrl = '';
+let lastHash   = '';
+let proxyIdx   = 0;
+
+/* ═══════════════════════════════════════════
+   UI HELPERS
+═══════════════════════════════════════════ */
+function setStatus(t, txt) {
+  const b = document.getElementById('sbadge');
+  b.className = 'sbadge s-' + t;
+  b.innerHTML = `<span class="sdot${t==='load'?' pulse':''}"></span> ${txt}`;
+  const d = document.getElementById('bdot');
+  d.className = 'bdot' + (t==='live' ? ' live' : t==='err' ? ' err' : '');
+}
+function showErr(m) { const e=document.getElementById('errbox'); e.textContent=m; e.style.display='block'; }
+function hideErr()  { document.getElementById('errbox').style.display='none'; }
+
+/* ═══════════════════════════════════════════
+   CSV PARSER — handles quotes, \r\n, k-suffix
+═══════════════════════════════════════════ */
+function parseCSV(raw) {
+  const lines = raw.replace(/\r\n/g,'\n').replace(/\r/g,'\n').trim().split('\n');
+  function parseLine(line) {
+    const res=[]; let cur='', inQ=false;
+    for(let i=0;i<line.length;i++){
+      const ch=line[i];
+      if(ch==='"'){ if(inQ&&line[i+1]==='"'){cur+='"';i++;} else inQ=!inQ; }
+      else if(ch===','&&!inQ){ res.push(cur.trim()); cur=''; }
+      else cur+=ch;
+    }
+    res.push(cur.trim());
+    return res;
+  }
+  if(!lines.length) return null;
+  const headers = parseLine(lines[0]);
+  // Keep ALL rows that have a non-empty first cell (including new rows like Manpower)
+  const rows = lines.slice(1).map(parseLine).filter(r => r[0] && r[0].trim()!=='');
+  return { headers, rows };
+}
+
+function toNum(v) {
+  if(v===null||v===undefined) return null;
+  const s = String(v).trim();
+  // Handle "10 k", "12k", "14K" → multiply by 1000
+  const km = s.match(/^([\d.]+)\s*k$/i);
+  if(km) return parseFloat(km[1]) * 1000;
+  const n = parseFloat(s.replace(/[^\d.\-]/g,''));
+  return isNaN(n) ? null : n;
+}
+
+function growth(row, f, t) {
+  const a=toNum(row[f]), b=toNum(row[t]);
+  if(a===null||b===null||a===0) return null;
+  return Math.round(((b-a)/Math.abs(a))*1000)/10;
+}
+
+function hashStr(s) {
+  let h=0;
+  for(let i=0;i<s.length;i++) h=(Math.imul(31,h)+s.charCodeAt(i))|0;
+  return h;
+}
+
+/* ═══════════════════════════════════════════
+   RENDER — METRICS
+═══════════════════════════════════════════ */
+function renderMetrics(data) {
+  const el   = document.getElementById('metrics');
+  el.innerHTML = '';
+  const last = data.headers.length - 1;
+
+  data.rows.forEach((row, ri) => {
+    const val = toNum(row[last]);
+    const g   = growth(row, 1, last);
+    const div = document.createElement('div');
+    div.className = 'metric mc' + (ri % 5);
+    div.innerHTML = `
+      <div class="mlabel">${row[0] || 'Row '+(ri+1)}</div>
+      <div class="mval">${val!==null ? val.toLocaleString() : (row[last]||'—')}</div>
+      <div class="mperiod">As of ${data.headers[last]||'latest'}</div>
+      ${g!==null ? `<div class="mgrow ${g>=0?'gu':'gd'}">${g>=0?'▲':'▼'} ${Math.abs(g)}% since ${data.headers[1]||''}</div>` : ''}
+    `;
+    el.appendChild(div);
+  });
+
+  // Summary stat cards
+  const periods = data.headers.slice(1);
+  [
+    ['Periods', ''+periods.length, periods[0]+' → '+periods[periods.length-1]],
+    ['Metrics',  ''+data.rows.length, 'Rows in your sheet']
+  ].forEach(([lbl,val,sub]) => {
+    const d = document.createElement('div');
+    d.className = 'metric mcstat';
+    d.innerHTML = `<div class="mlabel">${lbl}</div><div class="mval">${val}</div><div class="mperiod">${sub}</div>`;
+    el.appendChild(d);
+  });
+}
+
+/* ═══════════════════════════════════════════
+   RENDER — CHARTS (fully rebuilt every time)
+═══════════════════════════════════════════ */
+function destroyCharts() {
+  Object.keys(chartObjs).forEach(id => { try{ chartObjs[id].destroy(); }catch(e){} });
+  chartObjs = {};
+}
+
+function renderCharts(data) {
+  destroyCharts();
+  const el     = document.getElementById('charts');
+  el.innerHTML = '';                          // wipe old canvases
+  const labels = data.headers.slice(1);
+
+  function mkDS(type) {
+    return data.rows.map((row, i) => ({
+      label: row[0] || 'Row '+(i+1),
+      data:  labels.map((_,j) => toNum(row[j+1]) ?? 0),
+      borderColor:     COLORS[i % COLORS.length],
+      backgroundColor: type==='line'
+        ? COLORS[i%COLORS.length]+'22'
+        : COLORS[i%COLORS.length],
+      tension:0.4, pointRadius:5, pointHoverRadius:7, fill:false,
+      borderDash:   (type==='line' && i>0) ? [6,3] : [],
+      borderRadius: type==='bar' ? 5 : 0,
+      borderSkipped: false
+    }));
+  }
+
+  function legend(ds) {
+    return ds.map((d,i) =>
+      `<span class="li"><span class="lsq" style="background:${COLORS[i%COLORS.length]}"></span>${d.label}</span>`
+    ).join('');
+  }
+
+  [['line','📈 Trend over time','lC'],['bar','📊 Period comparison','bC']].forEach(([type,title,id]) => {
+    const div = document.createElement('div');
+    div.className = 'cc';
+    const ds = mkDS(type);
+    div.innerHTML = `
+      <div class="ctitle">${title}</div>
+      <div class="legend">${legend(ds)}</div>
+      <div style="position:relative;height:210px"><canvas id="${id}"></canvas></div>`;
+    el.appendChild(div);
+
+    chartObjs[id] = new Chart(document.getElementById(id), {
+      type,
+      data: { labels, datasets: ds },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{ display:false } },
+        scales:{
+          x:{ ticks:{ font:{size:10}, color:'#888780', autoSkip:false }, grid:{ color:'rgba(0,0,0,0.05)' } },
+          y:{ ticks:{ font:{size:10}, color:'#888780' },                 grid:{ color:'rgba(0,0,0,0.05)' } }
+        }
+      }
+    });
+  });
+}
+
+/* ═══════════════════════════════════════════
+   RENDER — TABLE
+═══════════════════════════════════════════ */
+function renderTable(data) {
+  const el   = document.getElementById('tcard');
+  const last = data.headers.length - 1;
+  let h = `
+    <div class="thead2">
+      <h3>All data</h3>
+      <span class="cbadge">${data.rows.length} rows × ${data.headers.length-1} periods</span>
+    </div>
+    <div style="overflow-x:auto">
+    <table class="dt"><thead><tr>`;
+  data.headers.forEach((hd,i) => { h += `<th ${i>0?'class="r"':''}>${hd}</th>`; });
+  h += `<th class="r">Growth</th></tr></thead><tbody>`;
+
+  data.rows.forEach((row, ri) => {
+    const g = growth(row, 1, last);
+    h += '<tr>';
+    row.forEach((cell, ci) => {
+      if(ci===0) h += `<td><span class="rbadge rb${ri%5}">${cell}</span></td>`;
+      else {
+        const n = toNum(cell);
+        h += `<td class="r">${n!==null ? n.toLocaleString() : (cell||'—')}</td>`;
+      }
+    });
+    const gs = g!==null
+      ? `<span style="font-weight:700;color:${g>=0?'#1D9E75':'#A32D2D'}">${g>=0?'+':''}${g}%</span>`
+      : '<span style="color:#888780">—</span>';
+    h += `<td class="r">${gs}</td></tr>`;
+  });
+  h += '</tbody></table></div>';
+  el.innerHTML = h;
+}
+
+/* ═══════════════════════════════════════════
+   RENDER — ALL
+═══════════════════════════════════════════ */
+function render(data) {
+  document.getElementById('estate').style.display = 'none';
+  document.getElementById('msec').style.display   = 'block';
+  renderMetrics(data);
+  renderCharts(data);
+  renderTable(data);
+  const total = data.rows.reduce((s,r) => s + r.slice(1).filter(c => toNum(c)!==null).length, 0);
+  document.getElementById('fcount').textContent   = total;
+  document.getElementById('rowcount').textContent = data.rows.length;
+}
+
+/* ═══════════════════════════════════════════
+   FETCH — tries proxies in order, then direct
+═══════════════════════════════════════════ */
+async function tryFetch(url) {
+  const errors = [];
+  for(let i=0; i<PROXIES.length; i++) {
+    const idx = (proxyIdx + i) % PROXIES.length;
+    try {
+      const r = await fetch(PROXIES[idx](url), {
+        cache:'no-store',
+        signal: AbortSignal.timeout(9000)
+      });
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const t = await r.text();
+      if(t && t.includes(',') && t.length > 10) {
+        proxyIdx = idx;   // remember the working proxy
+        return t;
+      }
+    } catch(e) { errors.push(e.message); }
+  }
+  // direct fetch — works when hosted on GitHub Pages / any web server
+  try {
+    const r = await fetch(url + '&_='+Date.now(), {
+      cache:'no-store',
+      signal: AbortSignal.timeout(9000)
+    });
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const t = await r.text();
+    if(t && t.length > 5) return t;
+  } catch(e) { errors.push(e.message); }
+
+  throw new Error('All attempts failed. ' + errors.join(' | '));
+}
+
+/* ═══════════════════════════════════════════
+   LOAD DATA
+═══════════════════════════════════════════ */
+async function loadData(url) {
+  setStatus('load','Syncing…');
+  hideErr();
+  try {
+    const text = await tryFetch(url);
+    const data = parseCSV(text);
+
+    if(!data || !data.headers.length) throw new Error('Sheet returned empty data.');
+    if(!data.rows.length) throw new Error('No data rows found in sheet.');
+
+    // Re-render only when data actually changed (avoids chart flicker)
+    const h = ''+hashStr(text);
+    if(h !== lastHash) { lastHash = h; render(data); }
+
+    const now = new Date().toLocaleTimeString();
+    document.getElementById('sync-lbl').textContent = `Synced at ${now} · auto-refreshes every 30s`;
+    document.getElementById('ref-btn').style.display = 'inline-flex';
+    setStatus('live','Live ✓');
+
+  } catch(err) {
+    setStatus('err','Error');
+    document.getElementById('sync-lbl').textContent = 'Sync failed — retrying in 30s';
+    showErr(
+      '❌ Could not load data. Please check:\n\n' +
+      '1. Google Sheet is published → File → Share → Publish to web → CSV → Publish\n' +
+      '2. The URL ends with output=csv\n' +
+      '3. Your internet connection is active\n\n' +
+      'Error detail: ' + err.message
+    );
+  }
+}
+
+/* ═══════════════════════════════════════════
+   CONNECT
+═══════════════════════════════════════════ */
+function connectSheet() {
+  const url = document.getElementById('surl').value.trim();
+  hideErr();
+  if(!url) { showErr('Please paste your Google Sheets CSV URL.'); return; }
+  if(!url.includes('docs.google.com')) { showErr('This does not look like a Google Sheets URL.'); return; }
+  if(!url.includes('output=csv')) { showErr('URL must include output=csv.\nGo to File → Share → Publish to web → choose CSV format.'); return; }
+
+  // Save to localStorage — auto-reconnects on next open
+  try { localStorage.setItem(STORAGE_KEY, url); } catch(e){}
+
+  currentUrl = url;
+  if(timer) clearInterval(timer);
+  loadData(url);
+  timer = setInterval(() => loadData(url), REFRESH_MS);
+}
+
+/* ═══════════════════════════════════════════
+   MANUAL REFRESH
+═══════════════════════════════════════════ */
+function manualRefresh() {
+  if(!currentUrl) return;
+  lastHash = '';   // force re-render
+  const b = document.getElementById('ref-btn');
+  b.textContent='↻ Refreshing…'; b.disabled=true;
+  loadData(currentUrl).finally(() => { b.innerHTML='↻ Refresh'; b.disabled=false; });
+}
+
+/* ═══════════════════════════════════════════
+   ENTER KEY + AUTO-LOAD SAVED URL
+═══════════════════════════════════════════ */
+document.getElementById('surl').addEventListener('keydown', e => {
+  if(e.key==='Enter') connectSheet();
+});
+
+window.addEventListener('load', () => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if(saved) {
+      document.getElementById('surl').value = saved;
+      connectSheet();
+    }
+  } catch(e){}
+});
+</script>
+</body>
+</html>
